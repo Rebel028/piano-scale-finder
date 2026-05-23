@@ -3,6 +3,7 @@ let audioContextStarted = false;
 let selectedNotes = new Set(); // Stores specific notes e.g., "C4"
 let baseOctave = 2; // Keyboard starts at C2
 let numKeys = 49; // 4 octaves
+let currentPreview = null; // Stores the currently previewed scale/chord
 
 // Tonal.js theory dictionaries
 const FLATS = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
@@ -82,6 +83,7 @@ function renderKeyboard() {
     document.getElementById('octave-display').innerText = `Octaves ${baseOctave}-${baseOctave + Math.floor(numKeys / 12)}`;
 
     for (let i = 0; i < numKeys; i++) {
+        // Replace the inside of the for-loop in renderKeyboard() with this:
         let noteMidi = startMidi + i;
         let noteName = Tonal.Note.fromMidi(noteMidi);
 
@@ -90,37 +92,49 @@ function renderKeyboard() {
         keyBtn.dataset.note = noteName;
         keyBtn.id = `key-${noteName}`;
 
-        // Name label span
-        let labelSpan = document.createElement('span');
-        labelSpan.className = "key-label";
-
-        // Only show labels on selected notes or C notes initially to prevent clutter
         let cleanName = noteName.replace(/(\d+)/, '');
         let displayName = formatNoteName(cleanName);
 
-        labelSpan.innerText = selectedNotes.has(noteName)
+        // --- PREVIEW LOGIC ---
+        let previewClass = '';
+        let tooltipText = '';
+        let isPreviewNote = false;
+
+        if (currentPreview) {
+            const { type, data } = currentPreview;
+            const chroma = Tonal.Note.chroma(noteName);
+
+            // Check if this key's chroma exists in the previewed scale/chord
+            let noteIndex = data.notes.findIndex(n => Tonal.Note.chroma(n) === chroma);
+            if (noteIndex !== -1) {
+                let interval = data.intervals[noteIndex];
+                let role = getRoleInfo(type, interval);
+                previewClass = `preview-${role.classSuffix}`;
+                tooltipText = `${role.name} (${formatNoteName(data.notes[noteIndex])})`;
+                isPreviewNote = true;
+            }
+        }
+
+        // Apply selected / preview classes
+        if (selectedNotes.has(noteName)) keyBtn.classList.add('selected');
+        if (previewClass) keyBtn.classList.add(previewClass);
+        if (tooltipText) keyBtn.setAttribute('data-tooltip', tooltipText);
+
+        // Name label span
+        let labelSpan = document.createElement('span');
+        labelSpan.className = "key-label";
+        labelSpan.innerText = (selectedNotes.has(noteName) || isPreviewNote)
             ? displayName
             : (noteName.startsWith('C') && !noteName.includes('#') ? displayName : '');
 
         keyBtn.appendChild(labelSpan);
 
-        if (selectedNotes.has(noteName)) {
-            keyBtn.classList.add('selected');
-        }
-
         keyBtn.addEventListener('mousedown', () => {
             ensureAudio();
-
             if (selectedNotes.has(noteName)) {
-                // Deselect Note
                 selectedNotes.delete(noteName);
-                keyBtn.classList.remove('selected');
-                // Reset text label to default view (only show text if it's a C note)
-                keyBtn.querySelector('.key-label').innerText = (noteName.startsWith('C') && !noteName.includes('#')) ? noteName : '';
                 updateResults();
             } else {
-                // Select and Play Note
-                keyBtn.classList.add('active');
                 triggerNote(noteName, true);
             }
         });
@@ -143,7 +157,7 @@ function shiftOctave(dir) {
 function formatNoteName(note) {
     if (!note) return "";
     const useSharps = document.getElementById('accidental-toggle').checked;
-    
+
     // Get the 12-tone index of the note (0-11)
     const chroma = Tonal.Note.chroma(note);
     if (chroma === undefined || chroma === null) return note;
@@ -154,10 +168,10 @@ function formatNoteName(note) {
 // --- INTERACTION & LOGIC ---
 function triggerNote(noteName, fromUI = false) {
     playNote(noteName);
-    
+
     // Add to selection pool
     selectedNotes.add(noteName);
-    
+
     // Update Visuals
     const keyEl = document.getElementById(`key-${noteName}`);
     if (keyEl) {
@@ -192,6 +206,9 @@ function isSubset(subsetChromas, supersetNotes) {
 
 function updateResults() {
     const chromas = getSelectedPitchClasses();
+    currentPreview = null;
+    renderLegend();
+
     if (chromas.length === 0) {
         resetSelection();
         return;
@@ -260,9 +277,9 @@ function renderResults(scales, chords) {
     } else {
         // We no longer format the output strings because Tonal.js spells them correctly out of the box
         scaleContainer.innerHTML = scales.map(s => `
-            <div class="result-item">
+            <div class="result-item" onclick="previewItem('scale', '${s.name}')">
                 <div class="result-name">${s.name}</div>
-                <div class="result-notes">${s.notes}</div>
+                <div class="result-notes">${s.notes.split(' ').map(n => formatNoteName(n)).join(' ')}</div>
             </div>
         `).join('');
     }
@@ -271,9 +288,9 @@ function renderResults(scales, chords) {
         chordContainer.innerHTML = "<em>No common chords found matching these notes.</em>";
     } else {
         chordContainer.innerHTML = chords.map(c => `
-            <div class="result-item">
+            <div class="result-item" onclick="previewItem('chord', '${c.name}')">
                 <div class="result-name">${c.name}</div>
-                <div class="result-notes">${c.notes}</div>
+                <div class="result-notes">${c.notes.split(' ').map(n => formatNoteName(n)).join(' ')}</div>
             </div>
         `).join('');
     }
@@ -384,6 +401,75 @@ function getMIDIMessage(message) {
         const keyEl = document.getElementById(`key-${noteName}`);
         if (keyEl) keyEl.classList.remove('active');
     }
+}
+
+// -- PREVIEW -- /
+function getRoleInfo(type, interval) {
+    let num = interval.replace(/\D/g, ''); // Extract the interval number (e.g., '3' from '3M')
+    if (type === 'scale') {
+        if (num === '1') return { name: 'Tonic', classSuffix: 'tonic' };
+        if (num === '4') return { name: 'Subdominant', classSuffix: 'subdominant' };
+        if (num === '5') return { name: 'Dominant', classSuffix: 'dominant' };
+        return { name: 'Scale Note', classSuffix: 'note' };
+    } else {
+        if (num === '1') return { name: 'Root', classSuffix: 'root' };
+        if (num === '3') return { name: '3rd', classSuffix: 'third' };
+        if (num === '5') return { name: '5th', classSuffix: 'fifth' };
+        if (num === '7') return { name: '7th', classSuffix: 'seventh' };
+        return { name: `Extension (${interval})`, classSuffix: 'extension' };
+    }
+}
+
+function previewItem(type, name) {
+    // Toggle off if clicking the already active item
+    if (currentPreview && currentPreview.name === name) {
+        currentPreview = null;
+    } else {
+        let data = type === 'scale' ? Tonal.Scale.get(name) : Tonal.Chord.get(name);
+        currentPreview = { type, name, data };
+    }
+    renderKeyboard(); // Re-render to show colors
+    renderLegend();
+
+    // Highlight the active result item in the list visually
+    document.querySelectorAll('.result-item').forEach(el => el.classList.remove('active-preview'));
+    if (currentPreview) {
+        let activeEl = Array.from(document.querySelectorAll('.result-item'))
+            .find(el => el.querySelector('.result-name').innerText === name);
+        if (activeEl) activeEl.classList.add('active-preview');
+    }
+}
+
+function renderLegend() {
+    const container = document.getElementById('legend-container');
+    if (!currentPreview) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+    }
+
+    container.style.display = 'flex';
+    const isScale = currentPreview.type === 'scale';
+
+    const roles = isScale ? [
+        { name: 'Tonic (1)', color: 'var(--color-tonic)' },
+        { name: 'Subdominant (4)', color: 'var(--color-subdominant)' },
+        { name: 'Dominant (5)', color: 'var(--color-dominant)' },
+        { name: 'Scale Note', color: 'var(--color-scale-note)' }
+    ] : [
+        { name: 'Root (1)', color: 'var(--color-root)' },
+        { name: '3rd', color: 'var(--color-third)' },
+        { name: '5th', color: 'var(--color-fifth)' },
+        { name: '7th', color: 'var(--color-seventh)' },
+        { name: 'Extensions (9/11/13)', color: 'var(--color-extension)' }
+    ];
+
+    container.innerHTML = roles.map(r => `
+        <div class="legend-item">
+            <span class="legend-color" style="background: ${r.color}"></span>
+            <span>${r.name}</span>
+        </div>
+    `).join('');
 }
 
 // --- INITIALIZATION ---
