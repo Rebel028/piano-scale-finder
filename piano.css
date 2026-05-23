@@ -281,20 +281,20 @@ input:checked + .slider:before {
     transform: translateX(22px);
 }
 
-/* --- PREVIEW FEATURE COLORS (RELAXING & PASTEL HARMONY) --- */
+/* --- PREVIEW FEATURE COLORS --- */
 :root {
     /* Scale Preview Palette */
     --color-tonic: #ff8a05;       
-    --color-subdominant: #76a37e;  
-    --color-dominant: #2f3eca;     
-    --color-scale-note: #acacac;   
+    --color-subdominant: #9dc4ff;  
+    --color-dominant: #7c89ff;     
+    --color-scale-note: #d7d7d7;   
 
     /* Chord Preview Palette */
-    --color-root: #d97706;         
-    --color-third: #bc8f8f;        
-    --color-fifth: #4e8766;        
-    --color-seventh: #7a7ba1;      
-    --color-extension: #5b92a2;    
+    --color-root: #D97706;         
+    --color-third: #e19238;        
+    --color-fifth: #e8ad6a;        
+    --color-seventh: #f0c99b;      
+    --color-extension: #f7e4cd;    
 }
 
 /* Base key utility adjustments */
@@ -306,13 +306,18 @@ input:checked + .slider:before {
     transition: background-color 0.2s, color 0.2s;
 }
 
-/* Preview State Background Overrides */
-.key.preview-tonic, .key.preview-root { background-color: var(--color-tonic) !important; color: #fff; }
-.key.preview-subdominant, .key.preview-seventh { background-color: var(--color-subdominant) !important; color: #fff; }
-.key.preview-dominant, .key.preview-fifth { background-color: var(--color-dominant) !important; color: #fff; }
-.key.preview-note { background-color: var(--color-scale-note) !important; color: #fff; }
-.key.preview-third { background-color: var(--color-third) !important; color: #fff; }
-.key.preview-extension { background-color: var(--color-extension) !important; color: #fff; }
+/* --- Scale Preview State Overrides --- */
+.key.preview-tonic       { background-color: var(--color-tonic) !important; color: #fff; }
+.key.preview-subdominant { background-color: var(--color-subdominant) !important; color: #000; } /* Dark text for light blue */
+.key.preview-dominant    { background-color: var(--color-dominant) !important; color: #fff; }
+.key.preview-note        { background-color: var(--color-scale-note) !important; color: #000; } /* Dark text for light gray */
+
+/* --- Chord Preview State Overrides --- */
+.key.preview-root        { background-color: var(--color-root) !important; color: #fff; }
+.key.preview-third       { background-color: var(--color-third) !important; color: #fff; }
+.key.preview-fifth       { background-color: var(--color-fifth) !important; color: #fff; }
+.key.preview-seventh     { background-color: var(--color-seventh) !important; color: #fff; }
+.key.preview-extension   { background-color: var(--color-extension) !important; color: #fff; }
 
 /* Custom Tooltips */
 .key[data-tooltip]::after {
