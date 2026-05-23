@@ -1,0 +1,212 @@
+
+:root {
+    --bg: #1e1e24;
+    --surface: #2b2b36;
+    --primary: #6366f1;
+    --primary-hover: #4f46e5;
+    --text: #f3f4f6;
+    --text-muted: #9ca3af;
+    --key-white: #ffffff;
+    --key-black: #111827;
+    --key-selected: #3b82f6;
+    --key-active: #ef4444;
+}
+
+* {
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    background-color: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.header {
+    width: 100%;
+    max-width: 1200px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+button,
+select {
+    background-color: var(--surface);
+    color: var(--text);
+    border: 1px solid #4b5563;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    outline: none;
+    transition: all 0.2s;
+}
+
+button:hover,
+select:hover {
+    background-color: #374151;
+}
+
+button.primary {
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+
+button.primary:hover {
+    background-color: var(--primary-hover);
+}
+
+.keyboard-wrapper {
+    width: 100%;
+    max-width: 1400px;
+    /* Increased from 1200px to give it more room */
+    overflow-x: auto;
+    background: var(--surface);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    margin: 0 auto 30px auto;
+    /* Centers the wrapper itself */
+    position: relative;
+}
+
+.keyboard-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.keyboard {
+    display: flex;
+    position: relative;
+    height: 200px;
+    user-select: none;
+    min-width: max-content;
+    margin: 0 auto;
+    /* Centers the keyboard inside the wrapper */
+    justify-content: center;
+    /* Ensures keys cluster in the middle */
+}
+
+.key {
+    border: 1px solid #ccc;
+    border-radius: 0 0 6px 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 10px;
+    font-weight: bold;
+    font-size: 12px;
+    transition: background-color 0.1s;
+}
+
+.key.white {
+    width: 44px;
+    background: var(--key-white);
+    color: var(--key-black);
+    z-index: 1;
+}
+
+.key.black {
+    width: 28px;
+    height: 125px;
+    background: var(--key-black);
+    color: var(--text);
+    z-index: 2;
+    margin-left: -14px;
+    margin-right: -14px;
+    position: relative;
+}
+
+.key.selected {
+    background-color: var(--key-selected) !important;
+    color: white;
+}
+
+.key.active {
+    background-color: var(--key-active) !important;
+    color: white;
+}
+
+.results-container {
+    display: flex;
+    width: 100%;
+    max-width: 1200px;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.results-column {
+    flex: 1;
+    min-width: 300px;
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.results-column h2 {
+    margin-top: 0;
+    color: var(--primary);
+    font-size: 1.2rem;
+    border-bottom: 1px solid #4b5563;
+    padding-bottom: 10px;
+}
+
+.result-item {
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #374151;
+}
+
+.result-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.result-name {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: #fff;
+    margin-bottom: 4px;
+}
+
+.result-notes {
+    color: var(--text-muted);
+    font-family: monospace;
+    font-size: 1rem;
+}
+
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(30, 30, 36, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    flex-direction: column;
+    gap: 10px;
+}
