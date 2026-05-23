@@ -5,7 +5,8 @@ let baseOctave = 2; // Keyboard starts at C2
 let numKeys = 49; // 4 octaves
 
 // Tonal.js theory dictionaries
-const CHROMATIC_SCALE = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+const FLATS = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+const SHARPS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 // Weights for sorting logic based on prompt rules
 const scaleWeights = {
@@ -92,8 +93,15 @@ function renderKeyboard() {
         // Name label span
         let labelSpan = document.createElement('span');
         labelSpan.className = "key-label";
+
         // Only show labels on selected notes or C notes initially to prevent clutter
-        labelSpan.innerText = selectedNotes.has(noteName) ? noteName.replace(/(\d+)/, '') : (noteName.startsWith('C') && !noteName.includes('#') ? noteName : '');
+        let cleanName = noteName.replace(/(\d+)/, '');
+        let displayName = formatNoteName(cleanName);
+
+        labelSpan.innerText = selectedNotes.has(noteName)
+            ? displayName
+            : (noteName.startsWith('C') && !noteName.includes('#') ? displayName : '');
+
         keyBtn.appendChild(labelSpan);
 
         if (selectedNotes.has(noteName)) {
@@ -102,7 +110,7 @@ function renderKeyboard() {
 
         keyBtn.addEventListener('mousedown', () => {
             ensureAudio();
-            
+
             if (selectedNotes.has(noteName)) {
                 // Deselect Note
                 selectedNotes.delete(noteName);
@@ -132,18 +140,30 @@ function shiftOctave(dir) {
     }
 }
 
+function formatNoteName(note) {
+    if (!note) return "";
+    const useSharps = document.getElementById('accidental-toggle').checked;
+    
+    // Get the 12-tone index of the note (0-11)
+    const chroma = Tonal.Note.chroma(note);
+    if (chroma === undefined || chroma === null) return note;
+
+    return useSharps ? SHARPS[chroma] : FLATS[chroma];
+}
+
 // --- INTERACTION & LOGIC ---
 function triggerNote(noteName, fromUI = false) {
     playNote(noteName);
-
+    
     // Add to selection pool
     selectedNotes.add(noteName);
-
+    
     // Update Visuals
     const keyEl = document.getElementById(`key-${noteName}`);
     if (keyEl) {
         keyEl.classList.add('selected');
-        keyEl.querySelector('.key-label').innerText = noteName.replace(/(\d+)/, ''); // Remove octave number for cleaner look
+        let cleanName = noteName.replace(/(\d+)/, ''); // Remove octave number
+        keyEl.querySelector('.key-label').innerText = formatNoteName(cleanName); // Uses helper
     }
 
     updateResults();
@@ -180,8 +200,12 @@ function updateResults() {
     let matchedScales = [];
     let matchedChords = [];
 
-    // Check all root notes
-    for (let root of CHROMATIC_SCALE) {
+    // Determine the musically correct roots to search based on the toggle
+    const useSharps = document.getElementById('accidental-toggle').checked;
+    const roots = useSharps ? SHARPS : FLATS;
+
+    // Check all root notes using the preferred accidentals
+    for (let root of roots) {
         // Check Scales
         for (let scaleType of Object.keys(scaleWeights)) {
             let scale = Tonal.Scale.get(`${root} ${scaleType}`);
@@ -189,7 +213,7 @@ function updateResults() {
             if (isSubset(chromas, scale.notes)) {
                 matchedScales.push({
                     name: `${root} ${scaleType}`,
-                    notes: scale.notes.join(' '),
+                    notes: scale.notes.join(' '), // Tonal handles correct spelling automatically!
                     weight: scaleWeights[scaleType],
                     length: scale.notes.length
                 });
@@ -203,7 +227,7 @@ function updateResults() {
             if (isSubset(chromas, chord.notes)) {
                 matchedChords.push({
                     name: `${root}${chordType}`,
-                    notes: chord.notes.join(' '),
+                    notes: chord.notes.join(' '), // Tonal handles correct spelling automatically!
                     weight: chordWeights[chordType],
                     length: chord.notes.length
                 });
@@ -212,14 +236,12 @@ function updateResults() {
     }
 
     // Sorting Logic
-    // Scales: by Weight (Major > Modes > Pentatonics), then number of notes, then alphabetical
     matchedScales.sort((a, b) => {
         if (a.weight !== b.weight) return a.weight - b.weight;
         if (a.length !== b.length) return a.length - b.length;
         return a.name.localeCompare(b.name);
     });
 
-    // Chords: by Weight (Triads > 7ths > sus/add > 9ths), then number of notes, then alphabetical
     matchedChords.sort((a, b) => {
         if (a.weight !== b.weight) return a.weight - b.weight;
         if (a.length !== b.length) return a.length - b.length;
@@ -236,23 +258,24 @@ function renderResults(scales, chords) {
     if (scales.length === 0) {
         scaleContainer.innerHTML = "<em>No common scales found matching these notes.</em>";
     } else {
+        // We no longer format the output strings because Tonal.js spells them correctly out of the box
         scaleContainer.innerHTML = scales.map(s => `
-        <div class="result-item">
-            <div class="result-name">${s.name.charAt(0).toUpperCase() + s.name.slice(1)}</div>
-            <div class="result-notes">${s.notes}</div>
-        </div>
-    `).join('');
+            <div class="result-item">
+                <div class="result-name">${s.name}</div>
+                <div class="result-notes">${s.notes}</div>
+            </div>
+        `).join('');
     }
 
     if (chords.length === 0) {
         chordContainer.innerHTML = "<em>No common chords found matching these notes.</em>";
     } else {
         chordContainer.innerHTML = chords.map(c => `
-        <div class="result-item">
-            <div class="result-name">${c.name}</div>
-            <div class="result-notes">${c.notes}</div>
-        </div>
-    `).join('');
+            <div class="result-item">
+                <div class="result-name">${c.name}</div>
+                <div class="result-notes">${c.notes}</div>
+            </div>
+        `).join('');
     }
 }
 

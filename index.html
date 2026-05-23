@@ -23,6 +23,14 @@
     <div class="header">
         <h1>🎹 Piano Scale/Chord Finder</h1>
         <div class="controls">
+            <div class="toggle-container">
+                <span class="toggle-label-text">Flats (♭)</span>
+                <label class="switch">
+                    <input type="checkbox" id="accidental-toggle" onchange="updateResults(); renderKeyboard();">
+                    <span class="slider"></span>
+                </label>
+                <span class="toggle-label-text">Sharps (♯)</span>
+            </div>
             <select id="midi-select">
                 <option value="">No MIDI Device Connected</option>
             </select>
