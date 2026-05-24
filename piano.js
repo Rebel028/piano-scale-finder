@@ -205,6 +205,7 @@ function isSubset(subsetChromas, supersetNotes) {
     return subsetChromas.every(c => superChromas.includes(c));
 }
 
+// --- RESULTS ORCHESTRATION ---
 function updateResults() {
     const chromas = getSelectedPitchClasses();
     
@@ -212,7 +213,7 @@ function updateResults() {
     currentPreview = null; 
     if (typeof renderLegend === 'function') renderLegend(); 
     
-    // REDRAW KEYBOARD: Force the DOM to immediately strip out unselected/preview classes
+    // REDRAW KEYBOARD
     renderKeyboard();
 
     if (chromas.length === 0) {
@@ -220,96 +221,104 @@ function updateResults() {
         return;
     }
 
+    // Get formatting & limit preferences
     const useSharps = document.getElementById('accidental-toggle').checked;
-    const notesToDetect = chromas.map(chroma => useSharps ? SHARPS[chroma] : FLATS[chroma]);
-
-    let allMatchedScales = [];
-    let allMatchedChords = [];
+    const roots = useSharps ? SHARPS : FLATS;
     
-    // Use sets to prevent identical names from appearing twice
-    let seenScales = new Set();
-    let seenChords = new Set();
+    const limitValue = document.getElementById('result-limit').value;
+    const limit = limitValue === 'all' ? Infinity : parseInt(limitValue, 10);
 
-    // Loop through every note in the selection, making it the temporary "Root" candidate
-    for (let i = 0; i < notesToDetect.length; i++) {
-        // Rotate the array so the current candidate root is at index 0
-        const rotatedNotes = [
-            notesToDetect[i], 
-            ...notesToDetect.slice(0, i), 
-            ...notesToDetect.slice(i + 1)
-        ];
+    // Delegate to modular search functions
+    const matchedScales = findScales(chromas, roots, limit);
+    const matchedChords = findChords(chromas, roots, limit);
 
-        // 1. Detect Scales for this root orientation
-        const detectedScaleNames = Tonal.Scale.detect(rotatedNotes);
-        detectedScaleNames.forEach(scaleName => {
-            if (!seenScales.has(scaleName)) {
-                seenScales.add(scaleName);
-                
-                let scale = Tonal.Scale.get(scaleName);
-                let type = scale.type;
-                let weight = scaleWeights.hasOwnProperty(type) ? scaleWeights[type] : 100;
+    renderResults(matchedScales, matchedChords, chromas.length);
+}
 
-                allMatchedScales.push({
-                    name: scaleName,
+// --- SCALE SEARCH LOGIC ---
+function findScales(chromas, roots, limit) {
+    if (chromas.length < 3) return []; // Optimization: Scales require at least 3 notes
+
+    let matchedScales = [];
+    const allScaleTypes = Tonal.ScaleType.all();
+
+    for (let root of roots) {
+        for (let typeObj of allScaleTypes) {
+            let scale = Tonal.Scale.get(`${root} ${typeObj.name}`);
+            if (scale.empty) continue;
+            
+            if (isSubset(chromas, scale.notes)) {
+                let weight = scaleWeights.hasOwnProperty(typeObj.name) ? scaleWeights[typeObj.name] : 100;
+                matchedScales.push({
+                    name: scale.name,
                     notes: scale.notes.join(' '),
                     weight: weight,
                     length: scale.notes.length
                 });
             }
-        });
+        }
+    }
 
-        // 2. Detect Chords for this root orientation
-        const detectedChordNames = Tonal.Chord.detect(rotatedNotes);
-        detectedChordNames.forEach(chordName => {
-            if (!seenChords.has(chordName)) {
-                seenChords.add(chordName);
-                
-                let chord = Tonal.Chord.get(chordName);
-                let aliases = chord.aliases;
-                
-                let weight = 100;
-                for (let alias of aliases) {
+    matchedScales.sort((a, b) => {
+        if (a.weight !== b.weight) return a.weight - b.weight;
+        if (a.length !== b.length) return a.length - b.length;
+        return a.name.localeCompare(b.name);
+    });
+
+    return matchedScales.slice(0, limit);
+}
+
+// --- CHORD SEARCH LOGIC ---
+function findChords(chromas, roots, limit) {
+    if (chromas.length < 2) return []; // Optimization: Chords require at least 2 notes
+
+    let matchedChords = [];
+    const allChordTypes = Tonal.ChordType.all();
+
+    for (let root of roots) {
+        for (let typeObj of allChordTypes) {
+            let chord = Tonal.Chord.get(`${root}${typeObj.aliases[0]}`);
+            if (chord.empty) continue;
+            
+            if (isSubset(chromas, chord.notes)) {
+                let weight = 100; 
+                for (let alias of typeObj.aliases) {
                     if (chordWeights.hasOwnProperty(alias)) {
                         weight = chordWeights[alias];
-                        break;
+                        break; 
                     }
                 }
 
-                allMatchedChords.push({
-                    name: chordName,
+                matchedChords.push({
+                    name: chord.name,
                     notes: chord.notes.join(' '),
                     weight: weight,
                     length: chord.notes.length
                 });
             }
-        });
+        }
     }
 
-    // 3. Sorting Logic (Prioritizes curated weights, then total formula notes, then alphabetical)
-    allMatchedScales.sort((a, b) => {
+    matchedChords.sort((a, b) => {
         if (a.weight !== b.weight) return a.weight - b.weight;
         if (a.length !== b.length) return a.length - b.length;
         return a.name.localeCompare(b.name);
     });
 
-    allMatchedChords.sort((a, b) => {
-        if (a.weight !== b.weight) return a.weight - b.weight;
-        if (a.length !== b.length) return a.length - b.length;
-        return a.name.localeCompare(b.name);
-    });
-
-    // Display the top 10 best-sorted matches
-    renderResults(allMatchedScales.slice(0, 10), allMatchedChords.slice(0, 10));
+    return matchedChords.slice(0, limit);
 }
 
-function renderResults(scales, chords) {
+// --- DOM RENDERING ---
+function renderResults(scales, chords, chromasLength) {
     const scaleContainer = document.getElementById('scales-list');
     const chordContainer = document.getElementById('chords-list');
 
-    if (scales.length === 0) {
+    // Scale Output Handling
+    if (chromasLength < 3) {
+        scaleContainer.innerHTML = "<em>Select at least 3 notes to search for scales...</em>";
+    } else if (scales.length === 0) {
         scaleContainer.innerHTML = "<em>No common scales found matching these notes.</em>";
     } else {
-        // We no longer format the output strings because Tonal.js spells them correctly out of the box
         scaleContainer.innerHTML = scales.map(s => `
             <div class="result-item" onclick="previewItem('scale', '${s.name}')">
                 <div class="result-name">${s.name}</div>
@@ -318,7 +327,10 @@ function renderResults(scales, chords) {
         `).join('');
     }
 
-    if (chords.length === 0) {
+    // Chord Output Handling
+    if (chromasLength < 2) {
+        chordContainer.innerHTML = "<em>Select at least 2 notes to search for chords...</em>";
+    } else if (chords.length === 0) {
         chordContainer.innerHTML = "<em>No common chords found matching these notes.</em>";
     } else {
         chordContainer.innerHTML = chords.map(c => `

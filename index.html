@@ -52,6 +52,12 @@
                 </label>
                 <span class="toggle-label-text">Sharps (♯)</span>
             </div>
+            <select id="result-limit" onchange="updateResults()">
+                <option value="10" selected>Show 10 Results</option>
+                <option value="25">Show 25 Results</option>
+                <option value="50">Show 50 Results</option>
+                <option value="all">Show All</option>
+            </select>
             <select id="midi-select">
                 <option value="">No MIDI Device Connected</option>
             </select>

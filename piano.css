@@ -31,17 +31,24 @@ body {
     width: 100%;
     max-width: 1200px;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
+    flex-direction: column;  /* Stack items vertically */
+    align-items: center;     /* Center align the title and controls container */
+    text-align: center;
+    margin-bottom: 25px;
     gap: 15px;
+}
+
+.header h1 {
+    margin: 0;
 }
 
 .controls {
     display: flex;
-    gap: 10px;
+    justify-content: center; /* Evenly center all inputs together */
     align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;        /* Safely wrap links neatly on smaller screens */
+    width: 100%;
 }
 
 button,
