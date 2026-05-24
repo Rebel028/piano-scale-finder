@@ -185,6 +185,7 @@ function triggerNote(noteName, fromUI = false) {
 
 function resetSelection() {
     selectedNotes.clear();
+    currentPreview = null
     renderKeyboard();
     document.getElementById('scales-list').innerHTML = "Select notes to find scales...";
     document.getElementById('chords-list').innerHTML = "Select notes to find chords...";
@@ -206,53 +207,64 @@ function isSubset(subsetChromas, supersetNotes) {
 
 function updateResults() {
     const chromas = getSelectedPitchClasses();
-    currentPreview = null;
-    renderLegend();
+    
+    // Clear preview states on any interaction
+    currentPreview = null; 
+    if (typeof renderLegend === 'function') renderLegend(); 
+    
+    // REDRAW KEYBOARD: Force the DOM to immediately strip out unselected/preview classes
+    renderKeyboard();
 
     if (chromas.length === 0) {
         resetSelection();
         return;
     }
 
-    let matchedScales = [];
-    let matchedChords = [];
-
-    // Determine the musically correct roots to search based on the toggle
+    // Convert chromas back into pitch names for Tonal.js detection functions
+    // (Tonal.Scale.detect expects an array of note names like ["C", "E", "G"])
     const useSharps = document.getElementById('accidental-toggle').checked;
-    const roots = useSharps ? SHARPS : FLATS;
+    const notesToDetect = chromas.map(chroma => useSharps ? SHARPS[chroma] : FLATS[chroma]);
 
-    // Check all root notes using the preferred accidentals
-    for (let root of roots) {
-        // Check Scales
-        for (let scaleType of Object.keys(scaleWeights)) {
-            let scale = Tonal.Scale.get(`${root} ${scaleType}`);
-            if (scale.empty) continue;
-            if (isSubset(chromas, scale.notes)) {
-                matchedScales.push({
-                    name: `${root} ${scaleType}`,
-                    notes: scale.notes.join(' '), // Tonal handles correct spelling automatically!
-                    weight: scaleWeights[scaleType],
-                    length: scale.notes.length
-                });
+    // 1. Detect Scales using Tonal.js native engine
+    const detectedScaleNames = Tonal.Scale.detect(notesToDetect);
+    let matchedScales = detectedScaleNames.map(scaleName => {
+        let scale = Tonal.Scale.get(scaleName);
+        let type = scale.type;
+        // Fallback to weight 100 if the scale type isn't defined in scaleWeights
+        let weight = scaleWeights.hasOwnProperty(type) ? scaleWeights[type] : 100;
+
+        return {
+            name: scaleName,
+            notes: scale.notes.join(' '),
+            weight: weight,
+            length: scale.notes.length
+        };
+    });
+
+    // 2. Detect Chords using Tonal.js native engine
+    const detectedChordNames = Tonal.Chord.detect(notesToDetect);
+    let matchedChords = detectedChordNames.map(chordName => {
+        let chord = Tonal.Chord.get(chordName);
+        let aliases = chord.aliases; // e.g. ["M", "maj"]
+        
+        // Find if any alias matches our chordWeights configuration
+        let weight = 100;
+        for (let alias of aliases) {
+            if (chordWeights.hasOwnProperty(alias)) {
+                weight = chordWeights[alias];
+                break; // Use the first matching weight found
             }
         }
 
-        // Check Chords
-        for (let chordType of Object.keys(chordWeights)) {
-            let chord = Tonal.Chord.get(`${root}${chordType}`);
-            if (chord.empty) continue;
-            if (isSubset(chromas, chord.notes)) {
-                matchedChords.push({
-                    name: `${root}${chordType}`,
-                    notes: chord.notes.join(' '), // Tonal handles correct spelling automatically!
-                    weight: chordWeights[chordType],
-                    length: chord.notes.length
-                });
-            }
-        }
-    }
+        return {
+            name: chordName,
+            notes: chord.notes.join(' '),
+            weight: weight,
+            length: chord.notes.length
+        };
+    });
 
-    // Sorting Logic
+    // 3. Sorting Logic (Matches your existing criteria)
     matchedScales.sort((a, b) => {
         if (a.weight !== b.weight) return a.weight - b.weight;
         if (a.length !== b.length) return a.length - b.length;
@@ -265,6 +277,7 @@ function updateResults() {
         return a.name.localeCompare(b.name);
     });
 
+    // Display the top 10 best-sorted matches
     renderResults(matchedScales.slice(0, 10), matchedChords.slice(0, 10));
 }
 
