@@ -220,65 +220,86 @@ function updateResults() {
         return;
     }
 
-    // Convert chromas back into pitch names for Tonal.js detection functions
-    // (Tonal.Scale.detect expects an array of note names like ["C", "E", "G"])
     const useSharps = document.getElementById('accidental-toggle').checked;
     const notesToDetect = chromas.map(chroma => useSharps ? SHARPS[chroma] : FLATS[chroma]);
 
-    // 1. Detect Scales using Tonal.js native engine
-    const detectedScaleNames = Tonal.Scale.detect(notesToDetect);
-    let matchedScales = detectedScaleNames.map(scaleName => {
-        let scale = Tonal.Scale.get(scaleName);
-        let type = scale.type;
-        // Fallback to weight 100 if the scale type isn't defined in scaleWeights
-        let weight = scaleWeights.hasOwnProperty(type) ? scaleWeights[type] : 100;
+    let allMatchedScales = [];
+    let allMatchedChords = [];
+    
+    // Use sets to prevent identical names from appearing twice
+    let seenScales = new Set();
+    let seenChords = new Set();
 
-        return {
-            name: scaleName,
-            notes: scale.notes.join(' '),
-            weight: weight,
-            length: scale.notes.length
-        };
-    });
+    // Loop through every note in the selection, making it the temporary "Root" candidate
+    for (let i = 0; i < notesToDetect.length; i++) {
+        // Rotate the array so the current candidate root is at index 0
+        const rotatedNotes = [
+            notesToDetect[i], 
+            ...notesToDetect.slice(0, i), 
+            ...notesToDetect.slice(i + 1)
+        ];
 
-    // 2. Detect Chords using Tonal.js native engine
-    const detectedChordNames = Tonal.Chord.detect(notesToDetect);
-    let matchedChords = detectedChordNames.map(chordName => {
-        let chord = Tonal.Chord.get(chordName);
-        let aliases = chord.aliases; // e.g. ["M", "maj"]
-        
-        // Find if any alias matches our chordWeights configuration
-        let weight = 100;
-        for (let alias of aliases) {
-            if (chordWeights.hasOwnProperty(alias)) {
-                weight = chordWeights[alias];
-                break; // Use the first matching weight found
+        // 1. Detect Scales for this root orientation
+        const detectedScaleNames = Tonal.Scale.detect(rotatedNotes);
+        detectedScaleNames.forEach(scaleName => {
+            if (!seenScales.has(scaleName)) {
+                seenScales.add(scaleName);
+                
+                let scale = Tonal.Scale.get(scaleName);
+                let type = scale.type;
+                let weight = scaleWeights.hasOwnProperty(type) ? scaleWeights[type] : 100;
+
+                allMatchedScales.push({
+                    name: scaleName,
+                    notes: scale.notes.join(' '),
+                    weight: weight,
+                    length: scale.notes.length
+                });
             }
-        }
+        });
 
-        return {
-            name: chordName,
-            notes: chord.notes.join(' '),
-            weight: weight,
-            length: chord.notes.length
-        };
-    });
+        // 2. Detect Chords for this root orientation
+        const detectedChordNames = Tonal.Chord.detect(rotatedNotes);
+        detectedChordNames.forEach(chordName => {
+            if (!seenChords.has(chordName)) {
+                seenChords.add(chordName);
+                
+                let chord = Tonal.Chord.get(chordName);
+                let aliases = chord.aliases;
+                
+                let weight = 100;
+                for (let alias of aliases) {
+                    if (chordWeights.hasOwnProperty(alias)) {
+                        weight = chordWeights[alias];
+                        break;
+                    }
+                }
 
-    // 3. Sorting Logic (Matches your existing criteria)
-    matchedScales.sort((a, b) => {
+                allMatchedChords.push({
+                    name: chordName,
+                    notes: chord.notes.join(' '),
+                    weight: weight,
+                    length: chord.notes.length
+                });
+            }
+        });
+    }
+
+    // 3. Sorting Logic (Prioritizes curated weights, then total formula notes, then alphabetical)
+    allMatchedScales.sort((a, b) => {
         if (a.weight !== b.weight) return a.weight - b.weight;
         if (a.length !== b.length) return a.length - b.length;
         return a.name.localeCompare(b.name);
     });
 
-    matchedChords.sort((a, b) => {
+    allMatchedChords.sort((a, b) => {
         if (a.weight !== b.weight) return a.weight - b.weight;
         if (a.length !== b.length) return a.length - b.length;
         return a.name.localeCompare(b.name);
     });
 
     // Display the top 10 best-sorted matches
-    renderResults(matchedScales.slice(0, 10), matchedChords.slice(0, 10));
+    renderResults(allMatchedScales.slice(0, 10), allMatchedChords.slice(0, 10));
 }
 
 function renderResults(scales, chords) {
